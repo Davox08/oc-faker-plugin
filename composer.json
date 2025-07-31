@@ -2,13 +2,21 @@
     "name": "davox/faker-plugin",
     "type": "october-plugin",
     "description": "Provides tools for generating fake data for testing and development purposes.",
-    "require": {
-        "composer/installers": "~1.0",
-        "fakerphp/faker": "^1.24"
-    },
-    "autoload": {
-        "psr-4": {
-            "Davox\\Faker\\": ""
+    "homepage": "https://github.com/Davox08/oc-faker-plugin",
+    "keywords": ["octobercms", "faker", "seeder", "testing", "development"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Daniel Hernandez",
+            "role": "Developer",
+            "email": "developer@dobermag.com"
         }
-    }
+    ],
+    "require": {
+        "php": ">=8.0.2",
+        "october/rain": ">=3.1",
+        "fakerphp/faker": "^1.24",
+        "composer/installers": "~1.0"
+    },
+    "minimum-stability": "dev"
 }
