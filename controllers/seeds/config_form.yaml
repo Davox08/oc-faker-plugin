@@ -1,0 +1,21 @@
+# ===================================
+#  Form Behavior Config
+# ===================================
+
+# Record name
+name: Seeds
+
+# Model Form Field configuration
+form: $/davox/faker/models/seed/fields.yaml
+
+# Model Class name
+modelClass: Davox\Faker\Models\Seed
+
+# Default redirect location
+defaultRedirect: davox/faker/seeds
+
+# Update page
+update:
+    title: backend::lang.form.update_title
+    redirect: davox/faker/seeds
+    redirectClose: davox/faker/seeds

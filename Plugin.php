@@ -1,12 +1,17 @@
-<?php namespace Davox\Faker;
+<?php
+
+declare(strict_types=1);
+
+namespace Davox\Faker;
 
 use Backend;
 use System\Classes\PluginBase;
+use System\Classes\SettingsManager;
 
 /**
  * Plugin Information File
  *
- * @link https://docs.octobercms.com/3.x/extend/system/plugins.html
+ * @link https://docs.octobercms.com/4.x/extend/system/plugins.html
  */
 class Plugin extends PluginBase
 {
@@ -17,69 +22,42 @@ class Plugin extends PluginBase
     {
         return [
             'name' => 'Faker',
-            'description' => 'No description provided yet...',
+            'description' => 'Provides tools for generating fake data for testing and development purposes.',
             'author' => 'Davox',
-            'icon' => 'icon-leaf'
+            'icon' => 'icon-magic',
         ];
     }
 
     /**
-     * register method, called when the plugin is first registered.
-     */
-    public function register()
-    {
-        //
-    }
-
-    /**
-     * boot method, called right before the request route.
-     */
-    public function boot()
-    {
-        //
-    }
-
-    /**
-     * registerComponents used by the frontend.
-     */
-    public function registerComponents()
-    {
-        return []; // Remove this line to activate
-
-        return [
-            'Davox\Faker\Components\MyComponent' => 'myComponent',
-        ];
-    }
-
-    /**
-     * registerPermissions used by the backend.
+     * Registers any back-end permissions used by this plugin.
+     *
+     * @return array
      */
     public function registerPermissions()
     {
-        return []; // Remove this line to activate
-
         return [
-            'davox.faker.some_permission' => [
+            'davox.faker.access_faker_seeds' => [
                 'tab' => 'Faker',
-                'label' => 'Some permission'
+                'label' => 'Access to faker seeds',
             ],
         ];
     }
 
     /**
-     * registerNavigation used by the backend.
+     * registerSettings used by this plugin.
      */
-    public function registerNavigation()
+    public function registerSettings()
     {
-        return []; // Remove this line to activate
-
         return [
-            'faker' => [
+            'seeds' => [
                 'label' => 'Faker',
-                'url' => Backend::url('davox/faker/mycontroller'),
-                'icon' => 'icon-leaf',
-                'permissions' => ['davox.faker.*'],
+                'description' => 'Generate fake data for your models.',
+                'category' => SettingsManager::CATEGORY_MISC,
+                'icon' => 'icon-magic',
+                'url' => Backend::url('davox/faker/seeds'),
                 'order' => 500,
+                'keywords' => 'faker seed generator data',
+                'permissions' => ['davox.faker.access_faker_seeds'],
             ],
         ];
     }
