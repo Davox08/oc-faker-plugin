@@ -2,7 +2,7 @@
 
     <div class="form-group">
         <h4>Field Mappings</h4>
-        <p class="help-block">Enter the Faker provider for each field (e.g., <code>name</code>, <code>email</code>, <code>address</code>). The parentheses are not needed.</p>
+        <p class="help-block">Select the Faker formatter for each field.</p>
     </div>
 
     <?php foreach ($columns as $column): ?>
@@ -10,13 +10,18 @@
             <label for="mappings-<?= e($column) ?>">
                 <?= e(ucwords(str_replace('_', ' ', $column))) ?>
             </label>
-            <input
-                type="text"
+            <select
                 id="mappings-<?= e($column) ?>"
                 name="mappings[<?= e($column) ?>]"
-                class="form-control"
-                placeholder="e.g., name"
-            />
+                class="form-control custom-select"
+                >
+                <option value="">-- Select a Formatter --</option>
+                <?php if (! empty($fakerFormatters)): ?>
+                    <?php foreach ($fakerFormatters as $formatter): ?>
+                        <option value="<?= e($formatter) ?>"><?= e($formatter) ?></option>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </select>
         </div>
     <?php endforeach ?>
 

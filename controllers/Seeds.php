@@ -11,6 +11,7 @@ use Db;
 use Exception;
 use Faker\Factory as Faker;
 use Flash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use System\Classes\SettingsManager;
 use ValidationException;
@@ -33,6 +34,11 @@ class Seeds extends Controller
     public $formConfig = 'config_form.yaml';
 
     /**
+     * @var array Cache for the Faker formatters list.
+     */
+    protected static $fakerFormatters = null;
+
+    /**
      * Controller constructor.
      */
     public function __construct()
@@ -46,19 +52,14 @@ class Seeds extends Controller
 
     /**
      * The default action, displays the settings update form.
-     * This method internally calls the 'update' action.
      */
     public function index(): void
     {
-        // Call our update action with a symbolic ID.
-        // This is required to prepare the FormController in the correct context.
         $this->update(1);
     }
 
     /**
-     * Update action, handles the form logic.
-     *
-     * @param int|null $recordId The record ID to update.
+     * Update action, handles the form logic and prepares data for the initial view.
      */
     public function update($recordId = null): void
     {
@@ -66,7 +67,8 @@ class Seeds extends Controller
         $this->pageTitle = __('Seeds');
         $this->pageSize = 750;
 
-        // Now, check if a model is already selected and prepare the columns for the initial render.
+        $this->vars['fakerFormatters'] = $this->getFakerFormatters();
+
         $model = $this->formGetModel();
         if ($model && ! empty($model->model_class)) {
             $this->vars['columns'] = $this->getColumnsForModel($model->model_class);
@@ -75,11 +77,6 @@ class Seeds extends Controller
 
     /**
      * Finds the singleton model for the form.
-     * This method is essential for the FormController to find the settings model.
-     *
-     * @param int $recordId The record ID.
-     *
-     * @return Seed
      */
     public function formFindModelObject($recordId)
     {
@@ -104,7 +101,10 @@ class Seeds extends Controller
         $columns = $this->getColumnsForModel($modelClass);
 
         return [
-            '#fieldMappingsContainer' => $this->makePartial('field_mappings', ['columns' => $columns]),
+            '#fieldMappingsContainer' => $this->makePartial('field_mappings', [
+                'columns' => $columns,
+                'fakerFormatters' => $this->getFakerFormatters(),
+            ]),
         ];
     }
 
@@ -176,5 +176,43 @@ class Seeds extends Controller
             'id', 'created_at', 'updated_at', 'deleted_at',
             'sort_order', 'nest_left', 'nest_right', 'nest_depth',
         ]);
+    }
+
+    /**
+     * Inspects the Faker library to get a list of all available formatters.
+     */
+    protected function getFakerFormatters(): array
+    {
+        if (self::$fakerFormatters !== null) {
+            return self::$fakerFormatters;
+        }
+
+        try {
+            $faker = Faker::create();
+            $formatters = [];
+            $providers = $faker->getProviders();
+
+            foreach ($providers as $provider) {
+                $providerClass = new \ReflectionClass($provider);
+                $methods = $providerClass->getMethods(\ReflectionMethod::IS_PUBLIC);
+
+                foreach ($methods as $method) {
+                    if ($method->isConstructor() || strpos($method->getName(), '__') === 0) {
+                        continue;
+                    }
+                    $formatters[] = $method->getName();
+                }
+            }
+
+            $formatters = array_unique($formatters);
+            sort($formatters);
+
+            return self::$fakerFormatters = array_combine($formatters, $formatters);
+        } catch (\Throwable $t) {
+            // Log the error silently and return an empty array to prevent crashing the UI.
+            Log::error('Faker Plugin Error: Could not retrieve formatters. ' . $t->getMessage());
+
+            return [];
+        }
     }
 }
