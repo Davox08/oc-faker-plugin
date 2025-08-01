@@ -5,46 +5,68 @@ declare(strict_types=1);
 namespace Davox\Faker\Models;
 
 use File;
+use Model;
 use System\Classes\PluginManager;
 use System\Models\PluginVersion;
-use System\Models\SettingModel;
 
 /**
- * Seed Settings Model
- *
- * @link https://docs.octobercms.com/4.x/extend/settings/model-settings.html
+ * Seed Model
  */
-class Seed extends SettingModel
+class Seed extends Model
 {
-    /**
-     * @var string settingsCode unique to this model
-     */
-    public $settingsCode = 'davox_faker_seed';
+    use \October\Rain\Database\Traits\Validation;
 
     /**
-     * @var string settingsFields file
+     * @var string The table associated with the model.
      */
-    public $settingsFields = 'fields.yaml';
+    public $table = 'davox_faker_seeds';
+
+    /**
+     * @var array Guarded fields
+     */
+    protected $guarded = ['*'];
+
+    /**
+     * @var array Fillable fields
+     */
+    protected $fillable = [
+        'name',
+        'plugin_code',
+        'model_class',
+        'record_count',
+        'mappings',
+    ];
+
+    /**
+     * @var array The attributes that should be cast.
+     */
+    protected $casts = [
+        'mappings' => 'array',
+        'record_count' => 'integer',
+    ];
+
+    /**
+     * @var array Validation rules for attributes
+     */
+    public $rules = [
+        'name' => 'required|string',
+        'plugin_code' => 'required|string',
+        'model_class' => 'required|string',
+        'record_count' => 'required|integer|min:1',
+    ];
 
     /**
      * Returns a list of available plugins.
-     *
-     * @return array
      */
     public function getPluginCodeOptions()
     {
-        // Corrected Approach: Fetch the full models to allow the 'afterFetch' event to fire,
-        // which populates the 'name' attribute from the plugin details.
         $plugins = PluginVersion::applyEnabled()->get();
 
-        // Now, we can pluck the name and code from the hydrated models.
         return $plugins->pluck('name', 'code')->all();
     }
 
     /**
      * Returns a list of available models for a given plugin.
-     *
-     * @return array
      */
     public function getModelClassOptions()
     {
@@ -52,7 +74,7 @@ class Seed extends SettingModel
         $pluginCode = $this->plugin_code;
 
         if (empty($pluginCode)) {
-            return $options;
+            return ['' => '-- Select a plugin first --'];
         }
 
         $pluginManager = PluginManager::instance();
@@ -68,10 +90,9 @@ class Seed extends SettingModel
             return $options;
         }
 
-        // Corrected: Construct the namespace directly from the plugin code.
         $pluginNamespace = str_replace('.', '\\', $pluginCode);
-
         $files = File::files($modelsPath);
+
         foreach ($files as $file) {
             $className = $pluginNamespace . '\\Models\\' . $file->getFilenameWithoutExtension();
             if (class_exists($className)) {
