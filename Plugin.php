@@ -26,6 +26,14 @@ class Plugin extends PluginBase
     }
 
     /**
+     * Registers any console commands implemented in your plugin.
+     */
+    public function register(): void
+    {
+        $this->registerConsoleCommand('faker.generate', Console\Generate::class);
+    }
+
+    /**
      * Registers back-end navigation items for this plugin.
      */
     public function registerNavigation()
