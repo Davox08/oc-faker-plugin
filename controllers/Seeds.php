@@ -111,28 +111,35 @@ class Seeds extends Controller
     }
 
     /**
+     * AJAX handler for generating data for the current seed from the update form.
+     */
+    public function onGenerateFromUpdateForm(): void
+    {
+        try {
+            // The model is already loaded in the form context.
+            $model = $this->formGetModel();
+            $this->generateDataForSeed($model);
+            Flash::success(sprintf('Successfully generated %d records for %s.', $model->record_count, class_basename($model->model_class)));
+        } catch (Exception $ex) {
+            Flash::error($ex->getMessage());
+        }
+        // We don't return anything, so the page doesn't refresh. The flash message will appear.
+    }
+
+    /**
      * Called before the form model is saved.
-     * This method intercepts the mappings data from the form post and ensures it's correctly
-     * processed before being saved to the database.
      */
     public function formBeforeSave($model): void
     {
-        // Get the mappings data directly from the POST request.
         $mappingsData = post('Seed')['mappings'] ?? [];
-
-        // Filter out any mappings where no formatter was selected (the value is empty).
         $filteredMappings = array_filter($mappingsData, function ($value) {
             return ! empty($value);
         });
-
-        // Assign the cleaned and filtered array to the model's 'mappings' attribute.
         $model->mappings = $filteredMappings;
     }
 
     /**
      * A helper function to get the filterable columns for a given model class.
-     * This function combines a hardcoded list of common framework columns with
-     * the model's specific guarded properties for robust exclusion.
      */
     protected function getColumnsForModel(?string $modelClass): array
     {
@@ -145,19 +152,14 @@ class Seeds extends Controller
             $table = $model->getTable();
             $allColumns = Schema::getColumnListing($table);
 
-            // Start with a list of common framework columns to always exclude.
             $hardcodedExclusions = [
                 'id', 'created_at', 'updated_at', 'deleted_at',
                 'sort_order', 'nest_left', 'nest_right', 'nest_depth',
             ];
 
-            // Get the model-specific guarded columns.
             $guardedColumns = $model->getGuarded();
-
-            // Merge both exclusion lists and remove duplicates.
             $allExclusions = array_unique(array_merge($hardcodedExclusions, $guardedColumns));
 
-            // Return the difference.
             return array_diff($allColumns, $allExclusions);
         } catch (Exception $e) {
             Log::error('Faker Plugin Error: Could not get columns for model. ' . $e->getMessage());
@@ -217,7 +219,6 @@ class Seeds extends Controller
         }
 
         if ($recordCount <= 0 || empty($mappings)) {
-            // If there are no mappings, we can't generate data. Flash a message to inform the user.
             Flash::warning("Skipping '{$seed->name}': No fields have been mapped to Faker providers.");
 
             return;

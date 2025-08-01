@@ -34,6 +34,16 @@
                     class="btn btn-default">
                     <?= __('Save & Close') ?>
                 </button>
+
+                <button
+                    type="button"
+                    class="btn btn-warning"
+                    data-request="onGenerateFromUpdateForm"
+                    data-load-indicator="Generating data..."
+                    data-request-message="Generating data for this configuration...">
+                    <i class="icon-magic"></i> Generate Data
+                </button>
+
                 <button
                     type="button"
                     class="oc-icon-delete btn-icon danger pull-right"
