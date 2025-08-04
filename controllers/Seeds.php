@@ -7,7 +7,7 @@ namespace Davox\Faker\Controllers;
 use Backend\Classes\Controller;
 use Backend\Facades\BackendMenu;
 use Davox\Faker\Models\Seed;
-use Db;
+use Davox\Faker\Traits\FakerGenerator;
 use Exception;
 use Faker\Factory as Faker;
 use Flash;
@@ -17,6 +17,8 @@ use Illuminate\Support\Str;
 
 class Seeds extends Controller
 {
+    use FakerGenerator;
+
     public $implement = [
         \Backend\Behaviors\FormController::class,
         \Backend\Behaviors\ListController::class,
@@ -52,11 +54,15 @@ class Seeds extends Controller
         try {
             $seedId = post('seed_id');
             $seed = Seed::findOrFail($seedId);
-            $this->generateDataForSeed($seed);
-            Flash::success(sprintf('Successfully generated %d records for %s.', $seed->record_count, class_basename($seed->model_class)));
+            if ($seed->record_count > 0) {
+                $this->generateDataForSeed($seed);
+                Flash::success(sprintf('Successfully generated %d records for %s.', $seed->record_count, class_basename($seed->model_class)));
+            } else {
+                Flash::info('Record count is zero. Nothing generated.');
+            }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
-            Log::error('Faker Plugin Error: ' . $ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage(), ['trace' => $ex->getTraceAsString()]);
         }
 
         return $this->listRefresh();
@@ -65,7 +71,6 @@ class Seeds extends Controller
     public function onGenerateAll()
     {
         try {
-            // Only fetch seeds that are marked as standalone
             $seeds = Seed::where('is_standalone', true)->get();
             if ($seeds->isEmpty()) {
                 Flash::warning('No standalone seeds configured to generate data.');
@@ -73,14 +78,22 @@ class Seeds extends Controller
                 return;
             }
 
+            $generatedCount = 0;
             foreach ($seeds as $seed) {
-                $this->generateDataForSeed($seed);
+                if ($seed->record_count > 0) {
+                    $this->generateDataForSeed($seed);
+                    $generatedCount++;
+                }
             }
 
-            Flash::success('Successfully generated data for all configured standalone seeds.');
+            if ($generatedCount > 0) {
+                Flash::success('Successfully generated data for all configured standalone seeds.');
+            } else {
+                Flash::info('All standalone seeds have a record count of zero. Nothing generated.');
+            }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
-            Log::error('Faker Plugin Error: ' . $ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage(), ['trace' => $ex->getTraceAsString()]);
         }
 
         return $this->listRefresh();
@@ -90,11 +103,15 @@ class Seeds extends Controller
     {
         try {
             $model = $this->formGetModel();
-            $this->generateDataForSeed($model);
-            Flash::success(sprintf('Successfully generated %d records for %s.', $model->record_count, class_basename($model->model_class)));
+            if ($model->record_count > 0) {
+                $this->generateDataForSeed($model);
+                Flash::success(sprintf('Successfully generated %d records for %s.', $model->record_count, class_basename($model->model_class)));
+            } else {
+                Flash::info('Record count is zero. Nothing generated.');
+            }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
-            Log::error('Faker Plugin Error: ' . $ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage(), ['trace' => $ex->getTraceAsString()]);
         }
     }
 
@@ -172,90 +189,6 @@ class Seeds extends Controller
             Log::error('Faker Plugin Error: Could not retrieve formatters. ' . $t->getMessage());
 
             return [];
-        }
-    }
-
-    protected function generateDataForSeed(Seed $seed): void
-    {
-        $modelClass = $seed->model_class;
-        $recordCount = $seed->record_count;
-        $mappings = $seed->mappings ?? [];
-        $relations = $seed->relations ?? [];
-
-        if (! class_exists($modelClass)) {
-            throw new Exception("Model class '{$modelClass}' not found for seed '{$seed->name}'.");
-        }
-        if ($recordCount <= 0) {
-            return;
-        }
-
-        $faker = Faker::create();
-
-        Db::transaction(function () use ($modelClass, $recordCount, $mappings, $relations, $faker): void {
-            for ($i = 0; $i < $recordCount; $i++) {
-                $parentModel = new $modelClass();
-                foreach ($mappings as $column => $format) {
-                    if (empty($format)) {
-                        continue;
-                    }
-
-                    try {
-                        $parentModel->{$column} = $faker->{$format};
-                    } catch (\InvalidArgumentException $e) {
-                        throw new Exception("Invalid Faker format '{$format}' for column '{$column}'.");
-                    }
-                }
-                $parentModel->save();
-
-                if (! empty($relations)) {
-                    $this->generateRelatedData($parentModel, $relations, $faker);
-                }
-            }
-        });
-    }
-
-    protected function generateRelatedData($parentModel, array $relations, $faker): void
-    {
-        foreach ($relations as $config) {
-            if (empty($config['relationship_name']) || empty($config['related_seed_id'])) {
-                continue;
-            }
-
-            $relationName = Str::camel($config['relationship_name']);
-            $relationType = $config['relation_type'];
-            $relatedSeedId = $config['related_seed_id'];
-            $count = (int) ($config['record_count_per_parent'] ?? 1);
-
-            $relatedSeed = Seed::find($relatedSeedId);
-            if (! $relatedSeed) {
-                continue;
-            }
-
-            $relatedModelClass = $relatedSeed->model_class;
-            $relatedMappings = $relatedSeed->mappings ?? [];
-
-            $modelsToAssociate = [];
-            for ($i = 0; $i < $count; $i++) {
-                $relatedModel = new $relatedModelClass();
-                foreach ($relatedMappings as $column => $format) {
-                    $relatedModel->{$column} = $faker->{$format};
-                }
-                $modelsToAssociate[] = $relatedModel;
-            }
-
-            if (empty($modelsToAssociate)) {
-                continue;
-            }
-
-            if ($relationType === 'add') {
-                $parentModel->{$relationName}()->addMany($modelsToAssociate);
-            } elseif ($relationType === 'attach') {
-                foreach ($modelsToAssociate as $model) {
-                    $model->save();
-                }
-                $ids = collect($modelsToAssociate)->pluck('id')->all();
-                $parentModel->{$relationName}()->attach($ids);
-            }
         }
     }
 
