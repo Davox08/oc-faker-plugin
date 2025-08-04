@@ -1,0 +1,25 @@
+# ===================================
+#  List Column Definitions
+# ===================================
+
+columns:
+    id:
+        label: ID
+        searchable: true
+    name:
+        label: Name
+        type: text
+        searchable: true
+    model_class:
+        label: Model
+        type: text
+        searchable: true
+    record_count:
+        label: 'Record Count'
+        type: number
+    generate_button:
+        label: 'Generate'
+        type: partial
+        path: generate_button
+        clickable: false
+        sortable: false

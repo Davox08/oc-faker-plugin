@@ -2,40 +2,42 @@
 #  Form Field Definitions
 # ===================================
 
+fields:
+    name:
+        label: 'Configuration Name'
+        comment: 'A descriptive name for this seed configuration (e.g., "Test Users").'
+        span: auto
+    record_count:
+        label: 'Number of Records'
+        comment: 'Specify how many records you want to generate.'
+        type: number
+        default: 10
+        span: auto
+        tab: 'Model Selection'
+    plugin_code:
+        label: 'Select Plugin'
+        comment: 'Choose the plugin that contains the model you want to seed.'
+        span: auto
+        type: dropdown
+        emptyOption: '-- Select a Plugin --'
+        tab: 'Model Selection'
+
+    model_class:
+        label: 'Select Model'
+        comment: 'Choose the model to fill with fake data.'
+        span: auto
+        type: dropdown
+        emptyOption: '-- Select a Model --'
+        dependsOn: plugin_code
+        tab: 'Model Selection'
+        changeHandler: 'onRefreshFields'
+
 tabs:
     fields:
-        plugin_code:
-            label: 'Select Plugin'
-            comment: 'Choose the plugin that contains the model you want to seed.'
-            span: auto
-            type: dropdown
-            emptyOption: '-- Select a Plugin --'
-            tab: 'Faker'
-
-        model_class:
-            label: 'Select Model'
-            comment: 'Choose the model to fill with fake data.'
-            span: auto
-            type: dropdown
-            emptyOption: '-- Select a Model --'
-            dependsOn: plugin_code
-            tab: 'Faker'
-            changeHandler: onRefreshFields
-
-        record_count:
-            label: 'Number of Records'
-            comment: 'Specify how many records you want to generate.'
-            type: number
-            default: 10
-            tab: 'Faker'
-            trigger:
-                action: hide
-                field: model_class
-                condition: value[]
-
         _field_mappings:
             type: partial
             path: field_mappings
-            tab: 'Faker'
+            tab: 'Field Mappings'
+            cssClass: 'col-sm-12'
             containerAttributes:
                 id: fieldMappingsContainer

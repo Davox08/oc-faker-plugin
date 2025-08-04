@@ -6,12 +6,9 @@ namespace Davox\Faker;
 
 use Backend;
 use System\Classes\PluginBase;
-use System\Classes\SettingsManager;
 
 /**
  * Plugin Information File
- *
- * @link https://docs.octobercms.com/4.x/extend/system/plugins.html
  */
 class Plugin extends PluginBase
 {
@@ -29,35 +26,47 @@ class Plugin extends PluginBase
     }
 
     /**
-     * Registers any back-end permissions used by this plugin.
-     *
-     * @return array
+     * Registers any console commands implemented in your plugin.
      */
-    public function registerPermissions()
+    public function register(): void
+    {
+        $this->registerConsoleCommand('faker.generate', Console\Generate::class);
+    }
+
+    /**
+     * Registers back-end navigation items for this plugin.
+     */
+    public function registerNavigation()
     {
         return [
-            'davox.faker.access_faker_seeds' => [
-                'tab' => 'Faker',
-                'label' => 'Access to faker seeds',
+            'faker' => [
+                'label' => 'Faker',
+                'url' => Backend::url('davox/faker/seeds'),
+                'icon' => 'icon-magic',
+                'permissions' => ['davox.faker.*'],
+                'order' => 500,
+
+                'sideMenu' => [
+                    'seeds' => [
+                        'label' => 'Seed Configurations',
+                        'icon' => 'icon-cogs',
+                        'url' => Backend::url('davox/faker/seeds'),
+                        'permissions' => ['davox.faker.access_seeds'],
+                    ],
+                ],
             ],
         ];
     }
 
     /**
-     * registerSettings used by this plugin.
+     * Registers any back-end permissions used by this plugin.
      */
-    public function registerSettings()
+    public function registerPermissions()
     {
         return [
-            'seeds' => [
-                'label' => 'Faker',
-                'description' => 'Generate fake data for your models.',
-                'category' => SettingsManager::CATEGORY_MISC,
-                'icon' => 'icon-magic',
-                'url' => Backend::url('davox/faker/seeds'),
-                'order' => 500,
-                'keywords' => 'faker seed generator data',
-                'permissions' => ['davox.faker.access_faker_seeds'],
+            'davox.faker.access_seeds' => [
+                'tab' => 'Faker',
+                'label' => 'Access and manage Faker seed configurations',
             ],
         ];
     }
