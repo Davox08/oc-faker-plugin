@@ -16,38 +16,27 @@ class Seed extends Model
 {
     use \October\Rain\Database\Traits\Validation;
 
-    /**
-     * @var string The table associated with the model.
-     */
     public $table = 'davox_faker_seeds';
 
-    /**
-     * @var array Guarded fields
-     */
     protected $guarded = ['*'];
 
-    /**
-     * @var array Fillable fields
-     */
     protected $fillable = [
         'name',
         'plugin_code',
         'model_class',
         'record_count',
+        'is_standalone',
         'mappings',
+        'relations',
     ];
 
-    /**
-     * @var array The attributes that should be cast.
-     */
     protected $casts = [
         'mappings' => 'array',
+        'relations' => 'array',
         'record_count' => 'integer',
+        'is_standalone' => 'boolean',
     ];
 
-    /**
-     * @var array Validation rules for attributes
-     */
     public $rules = [
         'name' => 'required|string',
         'plugin_code' => 'required|string',
@@ -55,9 +44,6 @@ class Seed extends Model
         'record_count' => 'required|integer|min:1',
     ];
 
-    /**
-     * Returns a list of available plugins.
-     */
     public function getPluginCodeOptions()
     {
         $plugins = PluginVersion::applyEnabled()->get();
@@ -65,9 +51,6 @@ class Seed extends Model
         return $plugins->pluck('name', 'code')->all();
     }
 
-    /**
-     * Returns a list of available models for a given plugin.
-     */
     public function getModelClassOptions()
     {
         $options = [];
@@ -101,5 +84,16 @@ class Seed extends Model
         }
 
         return $options;
+    }
+
+    public function getRelatedSeedIdOptions()
+    {
+        $query = self::query();
+
+        if ($this->exists) {
+            $query->where('id', '!=', $this->id);
+        }
+
+        return $query->pluck('name', 'id')->all();
     }
 }

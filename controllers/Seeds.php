@@ -7,54 +7,35 @@ namespace Davox\Faker\Controllers;
 use Backend\Classes\Controller;
 use Backend\Facades\BackendMenu;
 use Davox\Faker\Models\Seed;
-use Db;
+use Davox\Faker\Traits\FakerGenerator;
 use Exception;
 use Faker\Factory as Faker;
 use Flash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
-/**
- * Seeds Back-end Controller
- */
 class Seeds extends Controller
 {
-    /**
-     * @var array Behaviors implemented by this controller.
-     */
+    use FakerGenerator;
+
     public $implement = [
         \Backend\Behaviors\FormController::class,
         \Backend\Behaviors\ListController::class,
     ];
 
-    /**
-     * @var string Configuration file for the form controller.
-     */
     public $formConfig = 'config_form.yaml';
 
-    /**
-     * @var string Configuration file for the list controller.
-     */
     public $listConfig = 'config_list.yaml';
 
-    /**
-     * @var array Cache for the Faker formatters list.
-     */
     protected static $fakerFormatters = null;
 
-    /**
-     * Controller constructor.
-     */
     public function __construct()
     {
         parent::__construct();
         BackendMenu::setContext('Davox.Faker', 'faker', 'seeds');
     }
 
-    /**
-     * AJAX handler for refreshing the field mappings partial.
-     * This is triggered when the user selects a model.
-     */
     public function onRefreshFields()
     {
         $modelClass = post('Seed[model_class]');
@@ -68,79 +49,84 @@ class Seeds extends Controller
         ];
     }
 
-    /**
-     * AJAX handler for generating data for a single seed record from the list view.
-     */
     public function onGenerateSingle()
     {
         try {
             $seedId = post('seed_id');
             $seed = Seed::findOrFail($seedId);
-            $this->generateDataForSeed($seed);
-            Flash::success(sprintf('Successfully generated %d records for %s.', $seed->record_count, class_basename($seed->model_class)));
+            if ($seed->record_count > 0) {
+                $this->generateDataForSeed($seed);
+                Flash::success(sprintf('Successfully generated %d records for %s.', $seed->record_count, class_basename($seed->model_class)));
+            } else {
+                Flash::info('Record count is zero. Nothing generated.');
+            }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage(), ['trace' => $ex->getTraceAsString()]);
         }
 
         return $this->listRefresh();
     }
 
-    /**
-     * AJAX handler for generating data for all seed records from the list toolbar.
-     */
     public function onGenerateAll()
     {
         try {
-            $seeds = Seed::all();
+            $seeds = Seed::where('is_standalone', true)->get();
             if ($seeds->isEmpty()) {
-                Flash::warning('No seeds configured to generate data.');
+                Flash::warning('No standalone seeds configured to generate data.');
 
                 return;
             }
 
+            $generatedCount = 0;
             foreach ($seeds as $seed) {
-                $this->generateDataForSeed($seed);
+                if ($seed->record_count > 0) {
+                    $this->generateDataForSeed($seed);
+                    $generatedCount++;
+                }
             }
 
-            Flash::success('Successfully generated data for all configured seeds.');
+            if ($generatedCount > 0) {
+                Flash::success('Successfully generated data for all configured standalone seeds.');
+            } else {
+                Flash::info('All standalone seeds have a record count of zero. Nothing generated.');
+            }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage(), ['trace' => $ex->getTraceAsString()]);
         }
 
         return $this->listRefresh();
     }
 
-    /**
-     * AJAX handler for generating data for the current seed from the update form.
-     */
     public function onGenerateFromUpdateForm(): void
     {
         try {
-            // The model is already loaded in the form context.
             $model = $this->formGetModel();
-            $this->generateDataForSeed($model);
-            Flash::success(sprintf('Successfully generated %d records for %s.', $model->record_count, class_basename($model->model_class)));
+            if ($model->record_count > 0) {
+                $this->generateDataForSeed($model);
+                Flash::success(sprintf('Successfully generated %d records for %s.', $model->record_count, class_basename($model->model_class)));
+            } else {
+                Flash::info('Record count is zero. Nothing generated.');
+            }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage(), ['trace' => $ex->getTraceAsString()]);
         }
-        // We don't return anything, so the page doesn't refresh. The flash message will appear.
     }
 
-    /**
-     * Called before the form model is saved.
-     */
     public function formBeforeSave($model): void
     {
         $mappingsData = post('Seed')['mappings'] ?? [];
-        $filteredMappings = array_filter($mappingsData, function ($value) {
-            return ! empty($value);
-        });
-        $model->mappings = $filteredMappings;
+        $model->mappings = array_filter($mappingsData, fn($value) => ! empty($value));
+
+        $relationsData = post('Seed')['relations'] ?? [];
+        if (! is_array($relationsData)) {
+            $relationsData = [];
+        }
+        $model->relations = array_filter($relationsData, fn($rel) => ! empty($rel['relationship_name']) && ! empty($rel['related_seed_id']));
     }
 
-    /**
-     * A helper function to get the filterable columns for a given model class.
-     */
     protected function getColumnsForModel(?string $modelClass): array
     {
         if (! $modelClass || ! class_exists($modelClass)) {
@@ -157,8 +143,15 @@ class Seeds extends Controller
                 'sort_order', 'nest_left', 'nest_right', 'nest_depth',
             ];
 
+            $relationKeyExclusions = [];
+            if (property_exists($model, 'belongsTo')) {
+                foreach (array_keys($model->belongsTo) as $relationName) {
+                    $relationKeyExclusions[] = Str::snake($relationName) . '_id';
+                }
+            }
+
             $guardedColumns = $model->getGuarded();
-            $allExclusions = array_unique(array_merge($hardcodedExclusions, $guardedColumns));
+            $allExclusions = array_unique(array_merge($hardcodedExclusions, $guardedColumns, $relationKeyExclusions));
 
             return array_diff($allColumns, $allExclusions);
         } catch (Exception $e) {
@@ -168,9 +161,6 @@ class Seeds extends Controller
         }
     }
 
-    /**
-     * Inspects the Faker library to get a list of all available formatters.
-     */
     protected function getFakerFormatters(): array
     {
         if (self::$fakerFormatters !== null) {
@@ -181,11 +171,9 @@ class Seeds extends Controller
             $faker = Faker::create();
             $formatters = [];
             $providers = $faker->getProviders();
-
             foreach ($providers as $provider) {
                 $providerClass = new \ReflectionClass($provider);
                 $methods = $providerClass->getMethods(\ReflectionMethod::IS_PUBLIC);
-
                 foreach ($methods as $method) {
                     if ($method->isConstructor() || strpos($method->getName(), '__') === 0) {
                         continue;
@@ -193,7 +181,6 @@ class Seeds extends Controller
                     $formatters[] = $method->getName();
                 }
             }
-
             $formatters = array_unique($formatters);
             sort($formatters);
 
@@ -205,49 +192,6 @@ class Seeds extends Controller
         }
     }
 
-    /**
-     * Core data generation logic for a given seed configuration.
-     */
-    protected function generateDataForSeed(Seed $seed): void
-    {
-        $modelClass = $seed->model_class;
-        $recordCount = $seed->record_count;
-        $mappings = $seed->mappings ?? [];
-
-        if (! class_exists($modelClass)) {
-            throw new Exception("Model class '{$modelClass}' not found for seed '{$seed->name}'.");
-        }
-
-        if ($recordCount <= 0 || empty($mappings)) {
-            Flash::warning("Skipping '{$seed->name}': No fields have been mapped to Faker providers.");
-
-            return;
-        }
-
-        $faker = Faker::create();
-
-        Db::transaction(function () use ($modelClass, $recordCount, $mappings, $faker): void {
-            for ($i = 0; $i < $recordCount; $i++) {
-                $model = new $modelClass();
-                foreach ($mappings as $column => $format) {
-                    if (empty($format)) {
-                        continue;
-                    }
-
-                    try {
-                        $model->{$column} = $faker->{$format};
-                    } catch (\InvalidArgumentException $e) {
-                        throw new Exception("Invalid Faker format '{$format}' for column '{$column}'.");
-                    }
-                }
-                $model->save();
-            }
-        });
-    }
-
-    /**
-     * Override the form-specific methods to load necessary variables.
-     */
     public function formExtendModel($model)
     {
         $this->vars['fakerFormatters'] = $this->getFakerFormatters();
