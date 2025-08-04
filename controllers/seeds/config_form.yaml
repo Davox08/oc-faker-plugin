@@ -22,7 +22,7 @@ create:
 
 # Update page
 update:
-    title: backend::lang.form.edit_title
+    title: backend::lang.form.update_title
     redirect: davox/faker/seeds
     redirectClose: davox/faker/seeds
 
