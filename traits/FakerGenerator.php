@@ -24,7 +24,12 @@ trait FakerGenerator
         $relations = $seed->relations ?? [];
 
         if (! class_exists($modelClass)) {
-            throw new Exception("Model class '{$modelClass}' not found for seed '{$seed->name}'.");
+            throw new Exception(
+                __('Model class \':modelClass\' not found for seed \':seedName\'.', [
+                    'modelClass' => $modelClass,
+                    'seedName' => $seed->name,
+                ]),
+            );
         }
 
         if ($recordCount <= 0) {
@@ -46,7 +51,13 @@ trait FakerGenerator
                     try {
                         $parentModel->{$column} = $faker->{$format};
                     } catch (\InvalidArgumentException $e) {
-                        throw new Exception("Invalid Faker format '{$format}' for column '{$column}' in seed '{$seed->name}'.");
+                        throw new Exception(
+                            __('Invalid Faker format \':format\' for column \':column\' in seed \':seedName\'.', [
+                                'format' => $format,
+                                'column' => $column,
+                                'seedName' => $seed->name,
+                            ]),
+                        );
                     }
                 }
                 $parentModel->save();

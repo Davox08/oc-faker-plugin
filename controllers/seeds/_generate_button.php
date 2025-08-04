@@ -2,7 +2,7 @@
     class="btn btn-sm btn-secondary"
     data-request="onGenerateSingle"
     data-request-data="seed_id: '<?= $record->id ?>'"
-    data-load-indicator="Generating..."
+    data-load-indicator="<?= e(__('Generating...')) ?>"
     >
-    Generate
+    <?= e(__('Generate')) ?>
 </button>

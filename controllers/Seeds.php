@@ -56,9 +56,12 @@ class Seeds extends Controller
             $seed = Seed::findOrFail($seedId);
             if ($seed->record_count > 0) {
                 $this->generateDataForSeed($seed);
-                Flash::success(sprintf('Successfully generated %d records for %s.', $seed->record_count, class_basename($seed->model_class)));
+                Flash::success(__('Successfully generated :count records for :model.', [
+                    'count' => $seed->record_count,
+                    'model' => class_basename($seed->model_class),
+                ]));
             } else {
-                Flash::info('Record count is zero. Nothing generated.');
+                Flash::info(__('Record count is zero. Nothing generated.'));
             }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
@@ -73,7 +76,7 @@ class Seeds extends Controller
         try {
             $seeds = Seed::where('is_standalone', true)->get();
             if ($seeds->isEmpty()) {
-                Flash::warning('No standalone seeds configured to generate data.');
+                Flash::warning(__('No standalone seeds configured to generate data.'));
 
                 return;
             }
@@ -87,9 +90,9 @@ class Seeds extends Controller
             }
 
             if ($generatedCount > 0) {
-                Flash::success('Successfully generated data for all configured standalone seeds.');
+                Flash::success(__('Successfully generated data for all configured standalone seeds.'));
             } else {
-                Flash::info('All standalone seeds have a record count of zero. Nothing generated.');
+                Flash::info(__('All standalone seeds have a record count of zero. Nothing generated.'));
             }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
@@ -105,9 +108,12 @@ class Seeds extends Controller
             $model = $this->formGetModel();
             if ($model->record_count > 0) {
                 $this->generateDataForSeed($model);
-                Flash::success(sprintf('Successfully generated %d records for %s.', $model->record_count, class_basename($model->model_class)));
+                Flash::success(__('Successfully generated :count records for :model.', [
+                    'count' => $model->record_count,
+                    'model' => class_basename($model->model_class),
+                ]));
             } else {
-                Flash::info('Record count is zero. Nothing generated.');
+                Flash::info(__('Record count is zero. Nothing generated.'));
             }
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());

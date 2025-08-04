@@ -57,7 +57,7 @@ class Seed extends Model
         $pluginCode = $this->plugin_code;
 
         if (empty($pluginCode)) {
-            return ['' => '-- Select a plugin first --'];
+            return ['' => e(__('-- Select a plugin first --'))];
         }
 
         $pluginManager = PluginManager::instance();
