@@ -9,11 +9,10 @@ fields:
         span: auto
     record_count:
         label: 'Number of Records'
-        comment: 'Specify how many records you want to generate.'
+        comment: 'Specify how many main records you want to generate (e.g., 10 Businesses).'
         type: number
         default: 10
         span: auto
-        tab: 'Model Selection'
     plugin_code:
         label: 'Select Plugin'
         comment: 'Choose the plugin that contains the model you want to seed.'
@@ -41,3 +40,37 @@ tabs:
             cssClass: 'col-sm-12'
             containerAttributes:
                 id: fieldMappingsContainer
+        relations:
+            tab: 'Relationship Mappings'
+            type: repeater
+            prompt: 'Add New Relationship Mapping'
+            commentAbove: "To create relationships, you must first create a separate Seed configuration for each related model. For example, to add Employees to a Business, first create a 'Test Employees' seed. It will then appear in the 'Related Model Seed' dropdown below."
+            form:
+                fields:
+                    relationship_name:
+                        label: 'Relationship Name'
+                        comment: 'The name of the relationship method on the parent model (e.g., "employees", "categories").'
+                        type: text
+                        span: auto
+                    
+                    related_seed_id:
+                        label: 'Related Model Seed'
+                        comment: 'The seed configuration that generates the related models.'
+                        type: dropdown
+                        span: auto
+                        options: getRelatedSeedIdOptions
+
+                    relation_type:
+                        label: 'Relationship Type'
+                        type: dropdown
+                        options:
+                            add: 'hasOne / hasMany / morphMany (uses add())'
+                            attach: 'belongsToMany / morphToMany (uses attach())'
+                        span: auto
+
+                    record_count_per_parent:
+                        label: 'Records to Create per Parent'
+                        comment: 'How many related models (e.g., 5 Employees) to create for EACH main record (e.g., for each Business).'
+                        type: number
+                        default: 1
+                        span: auto

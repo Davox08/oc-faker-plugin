@@ -2,3 +2,6 @@ v1.0.1: First version of Faker
 v1.1.0:
     - 'Created davox_faker_seeds table'
     - create_seeds_table.php
+v1.2.0:
+    - 'Added support for relationships in seeds.'
+    - add_relations_to_seeds_table.php

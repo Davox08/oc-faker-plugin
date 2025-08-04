@@ -35,6 +35,7 @@ class Seed extends Model
         'model_class',
         'record_count',
         'mappings',
+        'relations',
     ];
 
     /**
@@ -42,6 +43,7 @@ class Seed extends Model
      */
     protected $casts = [
         'mappings' => 'array',
+        'relations' => 'array',
         'record_count' => 'integer',
     ];
 
@@ -101,5 +103,21 @@ class Seed extends Model
         }
 
         return $options;
+    }
+
+    /**
+     * Returns a list of other seed configurations to be used in relationships.
+     * This method is called by the form field definition in the repeater.
+     */
+    public function getRelatedSeedIdOptions()
+    {
+        $query = self::query();
+
+        // If the model exists (we are on the update page), exclude its own ID.
+        if ($this->exists) {
+            $query->where('id', '!=', $this->id);
+        }
+
+        return $query->pluck('name', 'id')->all();
     }
 }

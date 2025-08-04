@@ -64,35 +64,89 @@ class Generate extends Command
         $modelClass = $seed->model_class;
         $recordCount = $seed->record_count;
         $mappings = $seed->mappings ?? [];
+        $relations = $seed->relations ?? [];
 
         if (! class_exists($modelClass)) {
             throw new Exception("Model class '{$modelClass}' not found.");
         }
 
-        if ($recordCount <= 0 || empty($mappings)) {
-            $this->warn('-> Skipping: No records to generate or no fields have been mapped.');
+        if ($recordCount <= 0) {
+            $this->warn('-> Skipping: Record count is zero or less.');
 
             return;
         }
 
         $faker = Faker::create();
 
-        Db::transaction(function () use ($modelClass, $recordCount, $mappings, $faker): void {
+        Db::transaction(function () use ($modelClass, $recordCount, $mappings, $relations, $faker): void {
             for ($i = 0; $i < $recordCount; $i++) {
-                $model = new $modelClass();
+                $parentModel = new $modelClass();
                 foreach ($mappings as $column => $format) {
                     if (empty($format)) {
                         continue;
                     }
 
                     try {
-                        $model->{$column} = $faker->{$format};
+                        $parentModel->{$column} = $faker->{$format};
                     } catch (\InvalidArgumentException $e) {
                         throw new Exception("Invalid Faker format '{$format}' for column '{$column}'.");
                     }
                 }
-                $model->save();
+                $parentModel->save();
+
+                if (! empty($relations)) {
+                    $this->generateRelatedData($parentModel, $relations, $faker);
+                }
             }
         });
+    }
+
+    /**
+     * Generates and associates related models based on the configuration.
+     */
+    protected function generateRelatedData($parentModel, array $relations, $faker): void
+    {
+        foreach ($relations as $config) {
+            $relationName = $config['relationship_name'] ?? null;
+
+            if (empty($relationName)) {
+                $this->warn("--> Skipping relation due to empty relationship name in configuration for model ID: {$parentModel->id}.");
+                continue;
+            }
+
+            $relatedSeedId = $config['related_seed_id'];
+            $relationType = $config['relation_type'];
+            $count = (int) ($config['record_count_per_parent'] ?? 1);
+
+            $relatedSeed = Seed::find($relatedSeedId);
+            if (! $relatedSeed) {
+                $this->warn("--> Skipping relation '{$relationName}': Related seed ID #{$relatedSeedId} not found.");
+                continue;
+            }
+
+            $relatedModelClass = $relatedSeed->model_class;
+            $relatedMappings = $relatedSeed->mappings ?? [];
+
+            $modelsToAssociate = [];
+            for ($i = 0; $i < $count; $i++) {
+                $relatedModel = new $relatedModelClass();
+                foreach ($relatedMappings as $column => $format) {
+                    $relatedModel->{$column} = $faker->{$format};
+                }
+                $relatedModel->save();
+                $modelsToAssociate[] = $relatedModel;
+            }
+
+            if (empty($modelsToAssociate)) {
+                continue;
+            }
+
+            if ($relationType === 'add') {
+                $parentModel->{$relationName}()->addMany($modelsToAssociate);
+            } elseif ($relationType === 'attach') {
+                $ids = collect($modelsToAssociate)->pluck('id')->all();
+                $parentModel->{$relationName}()->attach($ids);
+            }
+        }
     }
 }

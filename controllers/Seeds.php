@@ -13,6 +13,7 @@ use Faker\Factory as Faker;
 use Flash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 /**
  * Seeds Back-end Controller
@@ -53,7 +54,6 @@ class Seeds extends Controller
 
     /**
      * AJAX handler for refreshing the field mappings partial.
-     * This is triggered when the user selects a model.
      */
     public function onRefreshFields()
     {
@@ -80,6 +80,7 @@ class Seeds extends Controller
             Flash::success(sprintf('Successfully generated %d records for %s.', $seed->record_count, class_basename($seed->model_class)));
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage());
         }
 
         return $this->listRefresh();
@@ -105,6 +106,7 @@ class Seeds extends Controller
             Flash::success('Successfully generated data for all configured seeds.');
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage());
         }
 
         return $this->listRefresh();
@@ -116,14 +118,13 @@ class Seeds extends Controller
     public function onGenerateFromUpdateForm(): void
     {
         try {
-            // The model is already loaded in the form context.
             $model = $this->formGetModel();
             $this->generateDataForSeed($model);
             Flash::success(sprintf('Successfully generated %d records for %s.', $model->record_count, class_basename($model->model_class)));
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
+            Log::error('Faker Plugin Error: ' . $ex->getMessage());
         }
-        // We don't return anything, so the page doesn't refresh. The flash message will appear.
     }
 
     /**
@@ -131,11 +132,20 @@ class Seeds extends Controller
      */
     public function formBeforeSave($model): void
     {
+        // Process direct field mappings
         $mappingsData = post('Seed')['mappings'] ?? [];
-        $filteredMappings = array_filter($mappingsData, function ($value) {
-            return ! empty($value);
-        });
-        $model->mappings = $filteredMappings;
+        $model->mappings = array_filter($mappingsData, fn($value) => ! empty($value));
+
+        // Process relationship mappings
+        $relationsData = post('Seed')['relations'] ?? [];
+
+        // When the repeater is empty, it can submit an empty string instead of an array.
+        // This ensures we always work with an array to prevent errors with array_filter.
+        if (! is_array($relationsData)) {
+            $relationsData = [];
+        }
+
+        $model->relations = array_filter($relationsData, fn($rel) => ! empty($rel['relationship_name']) && ! empty($rel['related_seed_id']));
     }
 
     /**
@@ -213,40 +223,93 @@ class Seeds extends Controller
         $modelClass = $seed->model_class;
         $recordCount = $seed->record_count;
         $mappings = $seed->mappings ?? [];
+        $relations = $seed->relations ?? [];
 
         if (! class_exists($modelClass)) {
             throw new Exception("Model class '{$modelClass}' not found for seed '{$seed->name}'.");
         }
 
-        if ($recordCount <= 0 || empty($mappings)) {
-            Flash::warning("Skipping '{$seed->name}': No fields have been mapped to Faker providers.");
-
+        if ($recordCount <= 0) {
             return;
         }
 
         $faker = Faker::create();
 
-        Db::transaction(function () use ($modelClass, $recordCount, $mappings, $faker): void {
+        Db::transaction(function () use ($modelClass, $recordCount, $mappings, $relations, $faker): void {
             for ($i = 0; $i < $recordCount; $i++) {
-                $model = new $modelClass();
+                $parentModel = new $modelClass();
                 foreach ($mappings as $column => $format) {
                     if (empty($format)) {
                         continue;
                     }
 
                     try {
-                        $model->{$column} = $faker->{$format};
+                        $parentModel->{$column} = $faker->{$format};
                     } catch (\InvalidArgumentException $e) {
                         throw new Exception("Invalid Faker format '{$format}' for column '{$column}'.");
                     }
                 }
-                $model->save();
+                $parentModel->save();
+
+                if (! empty($relations)) {
+                    $this->generateRelatedData($parentModel, $relations, $faker);
+                }
             }
         });
     }
 
     /**
-     * Override the form-specific methods to load necessary variables.
+     * Generates and associates related models based on the configuration.
+     */
+    protected function generateRelatedData($parentModel, array $relations, $faker): void
+    {
+        foreach ($relations as $config) {
+            $rawRelationName = $config['relationship_name'] ?? null;
+
+            if (empty($rawRelationName)) {
+                continue;
+            }
+
+            // Convert the user-provided name to camelCase to match conventions
+            $relationName = Str::camel($rawRelationName);
+
+            $relatedSeedId = $config['related_seed_id'];
+            $relationType = $config['relation_type'];
+            $count = (int) ($config['record_count_per_parent'] ?? 1);
+
+            $relatedSeed = Seed::find($relatedSeedId);
+            if (! $relatedSeed) {
+                continue;
+            }
+
+            $relatedModelClass = $relatedSeed->model_class;
+            $relatedMappings = $relatedSeed->mappings ?? [];
+
+            $modelsToAssociate = [];
+            for ($i = 0; $i < $count; $i++) {
+                $relatedModel = new $relatedModelClass();
+                foreach ($relatedMappings as $column => $format) {
+                    $relatedModel->{$column} = $faker->{$format};
+                }
+                $relatedModel->save();
+                $modelsToAssociate[] = $relatedModel;
+            }
+
+            if (empty($modelsToAssociate)) {
+                continue;
+            }
+
+            if ($relationType === 'add') {
+                $parentModel->{$relationName}()->addMany($modelsToAssociate);
+            } elseif ($relationType === 'attach') {
+                $ids = collect($modelsToAssociate)->pluck('id')->all();
+                $parentModel->{$relationName}()->attach($ids);
+            }
+        }
+    }
+
+    /**
+     * Override form-specific methods to load necessary variables.
      */
     public function formExtendModel($model)
     {
