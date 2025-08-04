@@ -9,35 +9,24 @@ use Db;
 use Exception;
 use Faker\Factory as Faker;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
-/**
- * Generate Command
- *
- * This command generates fake data based on all configured seeds in the database.
- */
 class Generate extends Command
 {
-    /**
-     * @var string The console command name.
-     */
     protected $name = 'faker:generate';
 
-    /**
-     * @var string The console command description.
-     */
     protected $description = 'Generates fake data based on all configured seeds.';
 
-    /**
-     * Execute the console command.
-     */
     public function handle(): void
     {
         $this->info('Starting data generation process...');
 
-        $seeds = Seed::all();
+        // Only fetch seeds that are marked as standalone
+        $seeds = Seed::where('is_standalone', true)->get();
 
         if ($seeds->isEmpty()) {
-            $this->warn('No seeds configured. Aborting.');
+            $this->warn('No standalone seeds configured. Aborting.');
 
             return;
         }
@@ -50,15 +39,13 @@ class Generate extends Command
                 $this->info("-> Successfully generated {$seed->record_count} records for " . class_basename($seed->model_class));
             } catch (Exception $ex) {
                 $this->error("-> Error processing '{$seed->name}': " . $ex->getMessage());
+                Log::error('Faker Console Error', ['message' => $ex->getMessage(), 'trace' => $ex->getTraceAsString()]);
             }
         }
 
         $this->info('Data generation completed.');
     }
 
-    /**
-     * Core data generation logic for a given seed configuration.
-     */
     protected function generateDataForSeed(Seed $seed): void
     {
         $modelClass = $seed->model_class;
@@ -69,7 +56,6 @@ class Generate extends Command
         if (! class_exists($modelClass)) {
             throw new Exception("Model class '{$modelClass}' not found.");
         }
-
         if ($recordCount <= 0) {
             $this->warn('-> Skipping: Record count is zero or less.');
 
@@ -101,21 +87,17 @@ class Generate extends Command
         });
     }
 
-    /**
-     * Generates and associates related models based on the configuration.
-     */
     protected function generateRelatedData($parentModel, array $relations, $faker): void
     {
         foreach ($relations as $config) {
-            $relationName = $config['relationship_name'] ?? null;
-
-            if (empty($relationName)) {
-                $this->warn("--> Skipping relation due to empty relationship name in configuration for model ID: {$parentModel->id}.");
+            if (empty($config['relationship_name']) || empty($config['related_seed_id'])) {
+                $this->warn("--> Skipping relation due to incomplete configuration for model ID: {$parentModel->id}.");
                 continue;
             }
 
-            $relatedSeedId = $config['related_seed_id'];
+            $relationName = Str::camel($config['relationship_name']);
             $relationType = $config['relation_type'];
+            $relatedSeedId = $config['related_seed_id'];
             $count = (int) ($config['record_count_per_parent'] ?? 1);
 
             $relatedSeed = Seed::find($relatedSeedId);
@@ -133,7 +115,6 @@ class Generate extends Command
                 foreach ($relatedMappings as $column => $format) {
                     $relatedModel->{$column} = $faker->{$format};
                 }
-                $relatedModel->save();
                 $modelsToAssociate[] = $relatedModel;
             }
 
@@ -144,6 +125,9 @@ class Generate extends Command
             if ($relationType === 'add') {
                 $parentModel->{$relationName}()->addMany($modelsToAssociate);
             } elseif ($relationType === 'attach') {
+                foreach ($modelsToAssociate as $model) {
+                    $model->save();
+                }
                 $ids = collect($modelsToAssociate)->pluck('id')->all();
                 $parentModel->{$relationName}()->attach($ids);
             }

@@ -12,7 +12,13 @@ fields:
         comment: 'Specify how many main records you want to generate (e.g., 10 Businesses).'
         type: number
         default: 10
-        span: auto
+        span: left
+    is_standalone:
+        label: 'Run this seed directly?'
+        comment: 'If enabled, this seed will be run by "Generate All" and the console command. Disable this for seeds that are only used as dependencies in relationships.'
+        type: switch
+        default: true
+        span: right
     plugin_code:
         label: 'Select Plugin'
         comment: 'Choose the plugin that contains the model you want to seed.'
@@ -64,8 +70,8 @@ tabs:
                         label: 'Relationship Type'
                         type: dropdown
                         options:
-                            add: 'hasOne / hasMany / morphMany (uses add())'
-                            attach: 'belongsToMany / morphToMany (uses attach())'
+                            add: 'hasOne / hasMany (uses addMany)'
+                            attach: 'belongsToMany (uses attach)'
                         span: auto
 
                     record_count_per_parent:

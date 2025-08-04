@@ -15,46 +15,25 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-/**
- * Seeds Back-end Controller
- */
 class Seeds extends Controller
 {
-    /**
-     * @var array Behaviors implemented by this controller.
-     */
     public $implement = [
         \Backend\Behaviors\FormController::class,
         \Backend\Behaviors\ListController::class,
     ];
 
-    /**
-     * @var string Configuration file for the form controller.
-     */
     public $formConfig = 'config_form.yaml';
 
-    /**
-     * @var string Configuration file for the list controller.
-     */
     public $listConfig = 'config_list.yaml';
 
-    /**
-     * @var array Cache for the Faker formatters list.
-     */
     protected static $fakerFormatters = null;
 
-    /**
-     * Controller constructor.
-     */
     public function __construct()
     {
         parent::__construct();
         BackendMenu::setContext('Davox.Faker', 'faker', 'seeds');
     }
 
-    /**
-     * AJAX handler for refreshing the field mappings partial.
-     */
     public function onRefreshFields()
     {
         $modelClass = post('Seed[model_class]');
@@ -68,9 +47,6 @@ class Seeds extends Controller
         ];
     }
 
-    /**
-     * AJAX handler for generating data for a single seed record from the list view.
-     */
     public function onGenerateSingle()
     {
         try {
@@ -86,15 +62,13 @@ class Seeds extends Controller
         return $this->listRefresh();
     }
 
-    /**
-     * AJAX handler for generating data for all seed records from the list toolbar.
-     */
     public function onGenerateAll()
     {
         try {
-            $seeds = Seed::all();
+            // Only fetch seeds that are marked as standalone
+            $seeds = Seed::where('is_standalone', true)->get();
             if ($seeds->isEmpty()) {
-                Flash::warning('No seeds configured to generate data.');
+                Flash::warning('No standalone seeds configured to generate data.');
 
                 return;
             }
@@ -103,7 +77,7 @@ class Seeds extends Controller
                 $this->generateDataForSeed($seed);
             }
 
-            Flash::success('Successfully generated data for all configured seeds.');
+            Flash::success('Successfully generated data for all configured standalone seeds.');
         } catch (Exception $ex) {
             Flash::error($ex->getMessage());
             Log::error('Faker Plugin Error: ' . $ex->getMessage());
@@ -112,9 +86,6 @@ class Seeds extends Controller
         return $this->listRefresh();
     }
 
-    /**
-     * AJAX handler for generating data for the current seed from the update form.
-     */
     public function onGenerateFromUpdateForm(): void
     {
         try {
@@ -127,30 +98,18 @@ class Seeds extends Controller
         }
     }
 
-    /**
-     * Called before the form model is saved.
-     */
     public function formBeforeSave($model): void
     {
-        // Process direct field mappings
         $mappingsData = post('Seed')['mappings'] ?? [];
         $model->mappings = array_filter($mappingsData, fn($value) => ! empty($value));
 
-        // Process relationship mappings
         $relationsData = post('Seed')['relations'] ?? [];
-
-        // When the repeater is empty, it can submit an empty string instead of an array.
-        // This ensures we always work with an array to prevent errors with array_filter.
         if (! is_array($relationsData)) {
             $relationsData = [];
         }
-
         $model->relations = array_filter($relationsData, fn($rel) => ! empty($rel['relationship_name']) && ! empty($rel['related_seed_id']));
     }
 
-    /**
-     * A helper function to get the filterable columns for a given model class.
-     */
     protected function getColumnsForModel(?string $modelClass): array
     {
         if (! $modelClass || ! class_exists($modelClass)) {
@@ -167,8 +126,15 @@ class Seeds extends Controller
                 'sort_order', 'nest_left', 'nest_right', 'nest_depth',
             ];
 
+            $relationKeyExclusions = [];
+            if (property_exists($model, 'belongsTo')) {
+                foreach (array_keys($model->belongsTo) as $relationName) {
+                    $relationKeyExclusions[] = Str::snake($relationName) . '_id';
+                }
+            }
+
             $guardedColumns = $model->getGuarded();
-            $allExclusions = array_unique(array_merge($hardcodedExclusions, $guardedColumns));
+            $allExclusions = array_unique(array_merge($hardcodedExclusions, $guardedColumns, $relationKeyExclusions));
 
             return array_diff($allColumns, $allExclusions);
         } catch (Exception $e) {
@@ -178,9 +144,6 @@ class Seeds extends Controller
         }
     }
 
-    /**
-     * Inspects the Faker library to get a list of all available formatters.
-     */
     protected function getFakerFormatters(): array
     {
         if (self::$fakerFormatters !== null) {
@@ -191,11 +154,9 @@ class Seeds extends Controller
             $faker = Faker::create();
             $formatters = [];
             $providers = $faker->getProviders();
-
             foreach ($providers as $provider) {
                 $providerClass = new \ReflectionClass($provider);
                 $methods = $providerClass->getMethods(\ReflectionMethod::IS_PUBLIC);
-
                 foreach ($methods as $method) {
                     if ($method->isConstructor() || strpos($method->getName(), '__') === 0) {
                         continue;
@@ -203,7 +164,6 @@ class Seeds extends Controller
                     $formatters[] = $method->getName();
                 }
             }
-
             $formatters = array_unique($formatters);
             sort($formatters);
 
@@ -215,9 +175,6 @@ class Seeds extends Controller
         }
     }
 
-    /**
-     * Core data generation logic for a given seed configuration.
-     */
     protected function generateDataForSeed(Seed $seed): void
     {
         $modelClass = $seed->model_class;
@@ -228,7 +185,6 @@ class Seeds extends Controller
         if (! class_exists($modelClass)) {
             throw new Exception("Model class '{$modelClass}' not found for seed '{$seed->name}'.");
         }
-
         if ($recordCount <= 0) {
             return;
         }
@@ -258,23 +214,16 @@ class Seeds extends Controller
         });
     }
 
-    /**
-     * Generates and associates related models based on the configuration.
-     */
     protected function generateRelatedData($parentModel, array $relations, $faker): void
     {
         foreach ($relations as $config) {
-            $rawRelationName = $config['relationship_name'] ?? null;
-
-            if (empty($rawRelationName)) {
+            if (empty($config['relationship_name']) || empty($config['related_seed_id'])) {
                 continue;
             }
 
-            // Convert the user-provided name to camelCase to match conventions
-            $relationName = Str::camel($rawRelationName);
-
-            $relatedSeedId = $config['related_seed_id'];
+            $relationName = Str::camel($config['relationship_name']);
             $relationType = $config['relation_type'];
+            $relatedSeedId = $config['related_seed_id'];
             $count = (int) ($config['record_count_per_parent'] ?? 1);
 
             $relatedSeed = Seed::find($relatedSeedId);
@@ -291,7 +240,6 @@ class Seeds extends Controller
                 foreach ($relatedMappings as $column => $format) {
                     $relatedModel->{$column} = $faker->{$format};
                 }
-                $relatedModel->save();
                 $modelsToAssociate[] = $relatedModel;
             }
 
@@ -302,15 +250,15 @@ class Seeds extends Controller
             if ($relationType === 'add') {
                 $parentModel->{$relationName}()->addMany($modelsToAssociate);
             } elseif ($relationType === 'attach') {
+                foreach ($modelsToAssociate as $model) {
+                    $model->save();
+                }
                 $ids = collect($modelsToAssociate)->pluck('id')->all();
                 $parentModel->{$relationName}()->attach($ids);
             }
         }
     }
 
-    /**
-     * Override form-specific methods to load necessary variables.
-     */
     public function formExtendModel($model)
     {
         $this->vars['fakerFormatters'] = $this->getFakerFormatters();
