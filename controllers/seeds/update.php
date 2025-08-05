@@ -1,6 +1,6 @@
 <?php Block::put('breadcrumb') ?>
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="<?= Backend::url('davox/faker/seeds') ?>">Seeds</a></li>
+        <li class="breadcrumb-item"><a href="<?= Backend::url('davox/faker/seeds') ?>"><?= e(__('Seeds')) ?></a></li>
         <li class="breadcrumb-item active" aria-current="page"><?= e($this->pageTitle) ?></li>
     </ol>
 <?php Block::endPut() ?>
@@ -20,9 +20,9 @@
                     data-request="onSave"
                     data-request-data="{ redirect: 0 }"
                     data-hotkey="ctrl+s, cmd+s"
-                    data-request-message="<?= __('Saving :name...', ['name' => $formRecordName]) ?>"
+                    data-request-message="<?= e(__('Saving :name...', ['name' => $formRecordName])) ?>"
                     class="btn btn-primary">
-                    <?= __('Save') ?>
+                    <?= e(__('Save')) ?>
                 </button>
                 <button
                     type="button"
@@ -30,33 +30,33 @@
                     data-request-data="{ close: 1 }"
                     data-browser-redirect-back
                     data-hotkey="ctrl+enter, cmd+enter"
-                    data-request-message="<?= __('Saving :name...', ['name' => $formRecordName]) ?>"
+                    data-request-message="<?= e(__('Saving :name...', ['name' => $formRecordName])) ?>"
                     class="btn btn-default">
-                    <?= __('Save & Close') ?>
+                    <?= e(__('Save & Close')) ?>
                 </button>
 
                 <button
                     type="button"
                     class="btn btn-warning"
                     data-request="onGenerateFromUpdateForm"
-                    data-load-indicator="Generating data..."
-                    data-request-message="Generating data for this configuration...">
-                    <i class="icon-magic"></i> Generate Data
+                    data-load-indicator="<?= e(__('Generating data...')) ?>"
+                    data-request-message="<?= e(__('Generating data for this configuration...')) ?>">
+                    <i class="icon-magic"></i> <?= e(__('Generate Data')) ?>
                 </button>
 
                 <button
                     type="button"
                     class="oc-icon-delete btn-icon danger pull-right"
                     data-request="onDelete"
-                    data-request-message="<?= __('Deleting :name...', ['name' => $formRecordName]) ?>"
-                    data-request-confirm="<?= __('Delete this record?') ?>">
+                    data-request-message="<?= e(__('Deleting :name...', ['name' => $formRecordName])) ?>"
+                    data-request-confirm="<?= e(__('Delete this record?')) ?>">
                 </button>
                 <span class="btn-text">
-                    <span class="button-separator"><?= __('or') ?></span>
+                    <span class="button-separator"><?= e(__('or')) ?></span>
                     <a
                         href="<?= Backend::url('davox/faker/seeds') ?>"
                         class="btn btn-link p-0">
-                        <?= __('Cancel') ?>
+                        <?= e(__('Cancel')) ?>
                     </a>
                 </span>
             </div>
@@ -73,7 +73,7 @@
         <a
             href="<?= Backend::url('davox/faker/seeds') ?>"
             class="btn btn-default">
-            <?= __('Return to List') ?>
+            <?= e(__('Return to list')) ?>
         </a>
     </p>
 
