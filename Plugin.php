@@ -48,7 +48,7 @@ class Plugin extends PluginBase
 
                 'sideMenu' => [
                     'seeds' => [
-                        'label' => 'Seed Configurations',
+                        'label' => 'Seeds',
                         'icon' => 'icon-cogs',
                         'url' => Backend::url('davox/faker/seeds'),
                         'permissions' => ['davox.faker.access_seeds'],
